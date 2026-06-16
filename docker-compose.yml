@@ -5,18 +5,28 @@ services:
     build: .
     container_name: rag-system-api
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - .env
     environment:
       - DEBUG=False
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - LLM_MODEL=${LLM_MODEL:-gemini-2.5-flash}
+      - LLM_TEMPERATURE=${LLM_TEMPERATURE:-0.7}
+      - AUTH_ENABLED=${AUTH_ENABLED:-false}
+      - RATE_LIMIT_ENABLED=${RATE_LIMIT_ENABLED:-true}
+      - API_ACCESS_KEY=${API_ACCESS_KEY:-}
       - UPLOAD_DIR=/app/uploads
-      - SESSION_TTL_SECONDS=1800
+      - MAX_FILE_SIZE=${MAX_FILE_SIZE:-26214400}
+      - SESSION_TTL_SECONDS=${SESSION_TTL_SECONDS:-1800}
+      - SESSION_CLEANUP_INTERVAL_SECONDS=${SESSION_CLEANUP_INTERVAL_SECONDS:-300}
     volumes:
       - ./uploads:/app/uploads
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 5s
+      start_period: 40s
