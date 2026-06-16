@@ -10,30 +10,7 @@ This project indexes uploaded source files and answers natural-language question
 - Security-focused upload handling (ZIP path checks, archive limits, API key mode, rate limits)
 - Deployable single-service architecture for a personal VPS
 
-## Screenshots
 
-Add screenshots under `docs/screenshots/`:
-
-- `docs/screenshots/upload.png` - ZIP upload and indexing state
-- `docs/screenshots/query.png` - query input and controls
-- `docs/screenshots/results.png` - generated answer and retrieved snippets
-
-## Architecture Diagram
-
-```mermaid
-flowchart LR
-    UI[index.html UI] --> API[FastAPI app]
-    API --> U1[/api/upload/zip]
-    API --> U2[/api/upload/zip/process]
-    API --> Q1[/api/query/search]
-    U1 --> ZH[ZipExtractor]
-    U2 --> CP[CodeParser]
-    CP --> ES[EmbeddingService]
-    ES --> RS[RetrievalService + SessionStore]
-    Q1 --> RS
-    Q1 --> LLM[LLMService (Gemini)]
-    RS --> Q1
-```
 
 ## Retrieval Pipeline
 
