@@ -9,14 +9,13 @@ import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from app.api import upload, query
-from app.models.schemas import QueryRequest, QueryResponse, RetrievedContext
 from app.security import limiter
 from app.utils.config import get_settings
 
@@ -88,7 +87,7 @@ def create_app() -> FastAPI:
         if not settings.auth_enabled:
             return await call_next(request)
 
-        protected_prefixes = ("/api/upload", "/api/query", "/query")
+        protected_prefixes = ("/api/upload", "/api/query")
         if request.url.path.startswith(protected_prefixes):
             provided_key = request.headers.get("X-API-Key", "").strip()
             expected_key = (settings.API_ACCESS_KEY or "").strip()
@@ -127,58 +126,6 @@ def create_app() -> FastAPI:
         """Serve the web UI (avoids file:// CORS issues)."""
         return FileResponse(index_path)
 
-    # Full RAG query endpoint
-    @app.post("/query", response_model=QueryResponse)
-    @limiter.limit("120/hour")
-    async def full_rag_query(request: QueryRequest):
-        if not request.query or not request.query.strip():
-            raise HTTPException(status_code=400, detail="Query cannot be empty")
-
-        try:
-            from app.services.rag_service import get_rag_service
-            rag_service = await get_rag_service()
-            result = await rag_service.answer_query(
-                query=request.query,
-                top_k=request.top_k,
-                filters=request.filters,
-                session_id=request.session_id,
-            )
-
-            retrieved_snippets = []
-            relevant_files = []
-            for item in result.get("context", []):
-                metadata = item.get("metadata", {}) if isinstance(item, dict) else {}
-                file_name = metadata.get("file_name") or metadata.get("filename")
-                if file_name and file_name not in relevant_files:
-                    relevant_files.append(file_name)
-
-                retrieved_snippets.append(RetrievedContext(
-                    chunk_id=item.get("chunk_id", ""),
-                    content=item.get("content", ""),
-                    language=metadata.get("language", "unknown"),
-                    file_id=metadata.get("file_id", ""),
-                    similarity_score=1 - float(item.get("distance", 0.0)),
-                ))
-
-            return QueryResponse(
-                answer=result.get("answer", ""),
-                context=retrieved_snippets,
-                relevant_file_names=relevant_files,
-                retrieved_snippets=retrieved_snippets,
-                model=result.get("model", "unknown"),
-                tokens_used=result.get("tokens_used", 0),
-            )
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"RAG query failed: {e}")
-            raise HTTPException(status_code=500, detail="RAG query failed")
-
-    # Health check endpoint
-    # @app.get("/health", tags=["health"])
-    # async def health_check():
-    #     """Health check endpoint"""
-    #     return {"status": "healthy"}
     return app
 
 

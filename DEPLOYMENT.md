@@ -47,5 +47,5 @@ Recommended Nginx hardening:
 
 - Pull latest code to a staging folder
 - Rebuild image
-- Run smoke tests (`/health`, one upload, one query)
+- Run smoke tests (`/health`, one ZIP upload/process cycle, one `/api/query/search` request)
 - Swap traffic after validation

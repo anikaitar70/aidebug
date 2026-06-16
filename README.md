@@ -1,68 +1,105 @@
 # AI Debug RAG API
 
-FastAPI backend for uploading source code, indexing it into embeddings, and asking natural-language questions with Gemini-backed RAG responses.
+Code-question answering backend for uploaded repositories.  
+This project indexes uploaded source files and answers natural-language questions using retrieved code context plus Gemini generation.
 
-## Project Overview
+## What This Repository Demonstrates
 
-- Upload source files or ZIP archives
-- Parse code into chunks and metadata
-- Store embeddings in session-scoped in-memory retrieval store
-- Query code context and generate LLM answers
-
-## Architecture
-
-- `main.py`: app bootstrap, routers, CORS, health endpoint
-- `app/api`: upload and query HTTP routes
-- `app/services`: parsing, embedding, retrieval, RAG orchestration
-- `app/utils`: configuration and ZIP safety handling
-- `index.html`: lightweight UI served by backend root route
+- FastAPI service design with clear API boundaries (`upload`, `query`, `stats`)
+- Practical RAG pipeline for code retrieval
+- Security-focused upload handling (ZIP path checks, archive limits, API key mode, rate limits)
+- Deployable single-service architecture for a personal VPS
 
 ## Screenshots
 
-Add screenshots to `docs/screenshots/` and reference them here:
+Add screenshots under `docs/screenshots/`:
 
-- `docs/screenshots/upload.png`
-- `docs/screenshots/query.png`
-- `docs/screenshots/results.png`
+- `docs/screenshots/upload.png` - ZIP upload and indexing state
+- `docs/screenshots/query.png` - query input and controls
+- `docs/screenshots/results.png` - generated answer and retrieved snippets
 
-## Installation
+## Architecture Diagram
 
-1. Create and activate a virtual environment.
-2. Install dependencies:
-   - `pip install -r requirements.txt`
-3. Create local env file:
-   - Copy `.env.example` to `.env`
-4. Fill real values only in local `.env` (never commit secrets).
+```mermaid
+flowchart LR
+    UI[index.html UI] --> API[FastAPI app]
+    API --> U1[/api/upload/zip]
+    API --> U2[/api/upload/zip/process]
+    API --> Q1[/api/query/search]
+    U1 --> ZH[ZipExtractor]
+    U2 --> CP[CodeParser]
+    CP --> ES[EmbeddingService]
+    ES --> RS[RetrievalService + SessionStore]
+    Q1 --> RS
+    Q1 --> LLM[LLMService (Gemini)]
+    RS --> Q1
+```
 
-## Local Setup
+## Retrieval Pipeline
 
-Run locally:
+1. Client uploads ZIP (`/api/upload/zip`).
+2. Archive is validated and extracted with safety checks.
+3. Extracted files are parsed into structured chunks (`CodeParser`).
+4. Chunks are embedded (`EmbeddingService`) and stored per session (`RetrievalService`).
+5. Query request (`/api/query/search`) is embedded and matched against stored vectors.
+6. Top-k chunks are passed to `LLMService` to generate the response.
+7. API returns answer + supporting retrieved snippets.
 
-- `python main.py`
+## Technology Stack
 
-API and UI:
+- **Backend:** FastAPI, Uvicorn, Pydantic
+- **RAG Core:** custom parser/retrieval services, NumPy
+- **Embeddings:** `sentence-transformers`
+- **LLM:** `google-generativeai` (Gemini)
+- **Security/Hardening:** `slowapi`, ZIP extraction safeguards, environment-based auth/CORS
+- **Frontend:** static `index.html` served by backend
 
-- API docs: `http://localhost:8000/docs`
+## Local Run
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+copy .env.example .env
+python main.py
+```
+
 - UI: `http://localhost:8000/`
-
-## Environment Variables
-
-Use `.env.example` as the source of truth. Key values:
-
-- `GOOGLE_API_KEY`
-- `LLM_MODEL`
-- `LLM_TEMPERATURE`
-- `MAX_FILE_SIZE`
-- `ALLOWED_ORIGINS`
-- `SESSION_TTL_SECONDS`
-- `SESSION_CLEANUP_INTERVAL_SECONDS`
-
-## Security Notes
-
-- Never commit `.env` with real values.
-- ZIP uploads are filtered for traversal, symlink entries, and archive abuse limits.
-- Session IDs gate data access between users but are not full authentication.
+- API docs: `http://localhost:8000/docs`
+- Health: `http://localhost:8000/health`
 
 ## Deployment
 
-For production setup on OVH VPS, see `DEPLOYMENT.md`.
+Use the OVH VPS guide in `DEPLOYMENT.md`.
+
+At minimum in production:
+
+- set `ENVIRONMENT=production`
+- set non-empty `API_ACCESS_KEY`
+- set valid `GOOGLE_API_KEY`
+- restrict `ALLOWED_ORIGINS`
+- run behind Nginx/HTTPS with request size and rate controls
+
+## Example Questions
+
+- "Where is authentication implemented?"
+- "How are sessions created and cleaned up?"
+- "Which endpoint handles ZIP upload processing?"
+- "Show file parsing logic before embeddings are generated."
+- "What causes a 401 vs 429 response?"
+
+## Limitations
+
+- Session-scoped in-memory retrieval store (not persistent database storage)
+- No user identity model (API key guard, not per-user auth)
+- Retrieval quality depends on chunking and embedding model behavior
+- LLM answers can still be imperfect or incomplete despite context grounding
+- Large repositories may take noticeable indexing time
+
+## Future Improvements
+
+- Replace in-memory retrieval backend with persistent vector store options
+- Add richer evaluation benchmarks for retrieval and answer quality
+- Add asynchronous background job status API for long indexing tasks
+- Migrate to current Google GenAI SDK interface and remove deprecated warnings
+- Add integration tests that cover full upload-index-query lifecycle in CI
