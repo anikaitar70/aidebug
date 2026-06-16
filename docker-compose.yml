@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  rag-api:
+    build: .
+    container_name: rag-system-api
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=False
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - UPLOAD_DIR=/app/uploads
+      - SESSION_TTL_SECONDS=1800
+    volumes:
+      - ./uploads:/app/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s

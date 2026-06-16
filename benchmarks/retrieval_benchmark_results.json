@@ -1,0 +1,675 @@
+{
+  "chunks_indexed": 9,
+  "baseline": {
+    "aggregate": {
+      "precision_at_k": 0.667,
+      "context_completeness": 0.63
+    },
+    "cases": [
+      {
+        "query": "How does authentication work?",
+        "k": 5,
+        "retrieved_count": 5,
+        "files_found": [
+          "main.py"
+        ],
+        "files_missed": [],
+        "symbols_found": [],
+        "symbols_missed": [
+          "authenticate_user",
+          "verify_password"
+        ],
+        "content_found": [
+          "password"
+        ],
+        "precision_at_k": 0.5,
+        "context_completeness": 0.475,
+        "top_results": [
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.5208
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.568
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.6853
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.7216
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.7378
+          }
+        ]
+      },
+      {
+        "query": "What happens when authentication fails?",
+        "k": 8,
+        "retrieved_count": 8,
+        "files_found": [
+          "handlers.js",
+          "main.py"
+        ],
+        "files_missed": [],
+        "symbols_found": [],
+        "symbols_missed": [
+          "authenticate_user",
+          "handleLogin",
+          "verify_password"
+        ],
+        "content_found": [
+          "401"
+        ],
+        "precision_at_k": 0.5,
+        "context_completeness": 0.475,
+        "top_results": [
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.5651
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.6732
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.6972
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.7915
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.827
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.8827
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.9417
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.9048
+          }
+        ]
+      },
+      {
+        "query": "Which files participate in login?",
+        "k": 10,
+        "retrieved_count": 9,
+        "files_found": [
+          "handlers.js",
+          "main.py"
+        ],
+        "files_missed": [],
+        "symbols_found": [],
+        "symbols_missed": [
+          "authenticate_user",
+          "handleLogin"
+        ],
+        "content_found": [],
+        "precision_at_k": 0.667,
+        "context_completeness": 0.6,
+        "top_results": [
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.6755
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.6906
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.7865
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.8024
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.8747
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.878
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.885
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.8918
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.8986
+          }
+        ]
+      },
+      {
+        "query": "Trace authentication from request to database.",
+        "k": 12,
+        "retrieved_count": 9,
+        "files_found": [
+          "handlers.js",
+          "main.py"
+        ],
+        "files_missed": [],
+        "symbols_found": [],
+        "symbols_missed": [
+          "authenticate_user",
+          "handleLogin",
+          "verify_password"
+        ],
+        "content_found": [
+          "401",
+          "database",
+          "get_user"
+        ],
+        "precision_at_k": 0.667,
+        "context_completeness": 0.6,
+        "top_results": [
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.5203
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.5585
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.7041
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.7148
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.7511
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.7944
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.8484
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.7912
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.8017
+          }
+        ]
+      },
+      {
+        "query": "Explain the repository architecture.",
+        "k": 10,
+        "retrieved_count": 9,
+        "files_found": [
+          "config.json",
+          "handlers.js",
+          "main.py"
+        ],
+        "files_missed": [],
+        "symbols_found": [],
+        "symbols_missed": [],
+        "content_found": [],
+        "precision_at_k": 1.0,
+        "context_completeness": 1.0,
+        "top_results": [
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.8277
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.8728
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 0.9728
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 1.0308
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 1.042
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 1.042
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 1.0436
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 1.0527
+          },
+          {
+            "file": "",
+            "function": "",
+            "expansion": null,
+            "distance": 1.0636
+          }
+        ]
+      }
+    ]
+  },
+  "enhanced": {
+    "aggregate": {
+      "precision_at_k": 0.933,
+      "context_completeness": 0.95
+    },
+    "cases": [
+      {
+        "query": "How does authentication work?",
+        "k": 5,
+        "retrieved_count": 5,
+        "files_found": [
+          "main.py"
+        ],
+        "files_missed": [],
+        "symbols_found": [
+          "authenticate_user",
+          "verify_password"
+        ],
+        "symbols_missed": [],
+        "content_found": [
+          "password"
+        ],
+        "precision_at_k": 0.833,
+        "context_completeness": 0.875,
+        "top_results": [
+          {
+            "file": "src/main.py",
+            "function": "authenticate_user",
+            "expansion": null,
+            "distance": 0.5587
+          },
+          {
+            "file": "README.md",
+            "function": "",
+            "expansion": null,
+            "distance": 0.5653
+          },
+          {
+            "file": "src/handlers.js",
+            "function": "handleLogin",
+            "expansion": null,
+            "distance": 0.7378
+          },
+          {
+            "file": "src/handlers.js",
+            "function": "generateJWT",
+            "expansion": null,
+            "distance": 0.7625
+          },
+          {
+            "file": "src/main.py",
+            "function": "verify_password",
+            "expansion": null,
+            "distance": 0.6865
+          }
+        ]
+      },
+      {
+        "query": "What happens when authentication fails?",
+        "k": 8,
+        "retrieved_count": 7,
+        "files_found": [
+          "handlers.js",
+          "main.py"
+        ],
+        "files_missed": [],
+        "symbols_found": [
+          "authenticate_user",
+          "handleLogin",
+          "verify_password"
+        ],
+        "symbols_missed": [],
+        "content_found": [
+          "401"
+        ],
+        "precision_at_k": 0.833,
+        "context_completeness": 0.875,
+        "top_results": [
+          {
+            "file": "src/handlers.js",
+            "function": "handleLogin",
+            "expansion": null,
+            "distance": 0.7018
+          },
+          {
+            "file": "src/main.py",
+            "function": "authenticate_user",
+            "expansion": null,
+            "distance": 0.5945
+          },
+          {
+            "file": "README.md",
+            "function": "",
+            "expansion": null,
+            "distance": 0.704
+          },
+          {
+            "file": "src/handlers.js",
+            "function": "generateJWT",
+            "expansion": null,
+            "distance": 0.8497
+          },
+          {
+            "file": "src/main.py",
+            "function": "verify_password",
+            "expansion": null,
+            "distance": 0.7833
+          },
+          {
+            "file": "public/index.html",
+            "function": "",
+            "expansion": null,
+            "distance": 0.9292
+          },
+          {
+            "file": "config.json",
+            "function": "",
+            "expansion": null,
+            "distance": 0.9914
+          }
+        ]
+      },
+      {
+        "query": "Which files participate in login?",
+        "k": 10,
+        "retrieved_count": 7,
+        "files_found": [
+          "handlers.js",
+          "main.py"
+        ],
+        "files_missed": [],
+        "symbols_found": [
+          "authenticate_user",
+          "handleLogin"
+        ],
+        "symbols_missed": [],
+        "content_found": [],
+        "precision_at_k": 1.0,
+        "context_completeness": 1.0,
+        "top_results": [
+          {
+            "file": "src/handlers.js",
+            "function": "handleLogin",
+            "expansion": null,
+            "distance": 0.744
+          },
+          {
+            "file": "README.md",
+            "function": "",
+            "expansion": null,
+            "distance": 0.5647
+          },
+          {
+            "file": "public/index.html",
+            "function": "",
+            "expansion": null,
+            "distance": 0.6516
+          },
+          {
+            "file": "src/handlers.js",
+            "function": "handleGetProfile",
+            "expansion": null,
+            "distance": 0.8449
+          },
+          {
+            "file": "src/main.py",
+            "function": "authenticate_user",
+            "expansion": null,
+            "distance": 0.7778
+          },
+          {
+            "file": "src/main.py",
+            "function": "verify_password",
+            "expansion": null,
+            "distance": 0.8128
+          },
+          {
+            "file": "config.json",
+            "function": "",
+            "expansion": null,
+            "distance": 0.8664
+          }
+        ]
+      },
+      {
+        "query": "Trace authentication from request to database.",
+        "k": 12,
+        "retrieved_count": 7,
+        "files_found": [
+          "handlers.js",
+          "main.py"
+        ],
+        "files_missed": [],
+        "symbols_found": [
+          "authenticate_user",
+          "handleLogin",
+          "verify_password"
+        ],
+        "symbols_missed": [],
+        "content_found": [
+          "401",
+          "database",
+          "get_user"
+        ],
+        "precision_at_k": 1.0,
+        "context_completeness": 1.0,
+        "top_results": [
+          {
+            "file": "src/main.py",
+            "function": "authenticate_user",
+            "expansion": null,
+            "distance": 0.5228
+          },
+          {
+            "file": "README.md",
+            "function": "",
+            "expansion": null,
+            "distance": 0.5559
+          },
+          {
+            "file": "src/handlers.js",
+            "function": "handleGetProfile",
+            "expansion": null,
+            "distance": 0.7707
+          },
+          {
+            "file": "src/handlers.js",
+            "function": "handleLogin",
+            "expansion": null,
+            "distance": 0.703
+          },
+          {
+            "file": "src/main.py",
+            "function": "verify_password",
+            "expansion": null,
+            "distance": 0.7017
+          },
+          {
+            "file": "config.json",
+            "function": "",
+            "expansion": null,
+            "distance": 0.8714
+          },
+          {
+            "file": "public/index.html",
+            "function": "",
+            "expansion": null,
+            "distance": 0.8263
+          }
+        ]
+      },
+      {
+        "query": "Explain the repository architecture.",
+        "k": 10,
+        "retrieved_count": 7,
+        "files_found": [
+          "config.json",
+          "handlers.js",
+          "main.py"
+        ],
+        "files_missed": [],
+        "symbols_found": [],
+        "symbols_missed": [],
+        "content_found": [],
+        "precision_at_k": 1.0,
+        "context_completeness": 1.0,
+        "top_results": [
+          {
+            "file": "README.md",
+            "function": "",
+            "expansion": null,
+            "distance": 0.8043
+          },
+          {
+            "file": "src/handlers.js",
+            "function": "handleGetProfile",
+            "expansion": null,
+            "distance": 0.9593
+          },
+          {
+            "file": "config.json",
+            "function": "",
+            "expansion": null,
+            "distance": 0.9472
+          },
+          {
+            "file": "src/handlers.js",
+            "function": "handleLogin",
+            "expansion": null,
+            "distance": 1.0435
+          },
+          {
+            "file": "src/main.py",
+            "function": "create_session",
+            "expansion": null,
+            "distance": 1.0473
+          },
+          {
+            "file": "src/main.py",
+            "function": "verify_password",
+            "expansion": null,
+            "distance": 1.0582
+          },
+          {
+            "file": "public/index.html",
+            "function": "",
+            "expansion": null,
+            "distance": 1.0721
+          }
+        ]
+      }
+    ]
+  },
+  "improvement": {
+    "precision_at_k_delta": 0.266,
+    "context_completeness_delta": 0.32
+  }
+}

@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG System - Code Search & Analysis</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --bg: #f8fafc;
+            --bg-dark: #1e293b;
+            --text: #1e293b;
+            --text-light: #64748b;
+            --border: #e2e8f0;
+            --border-dark: #cbd5e1;
+            --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        header {
+            background: white;
+            border-bottom: 1px solid var(--border);
+            padding: 20px 0;
+            box-shadow: var(--shadow);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        header .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: var(--primary);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 18px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: #dcfce7;
+            color: #15803d;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-badge.offline {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        main {
+            padding: 40px 0;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        @media (max-width: 968px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: var(--shadow);
+        }
+
+        .panel h2 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .icon {
+            width: 24px;
+            height: 24px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--text);
+        }
+
+        input[type="text"],
+        input[type="file"],
+        textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus,
+        input[type="file"]:focus,
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+            font-size: 13px;
+        }
+
+        button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 16px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: var(--primary-hover);
+            box-shadow: var(--shadow-lg);
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        button.secondary {
+            background: white;
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        button.secondary:hover {
+            background: var(--bg);
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+
+        input[type="file"] {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .file-input-label {
+            display: block;
+            padding: 20px;
+            border: 2px dashed var(--border-dark);
+            border-radius: 8px;
+            background: var(--bg);
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .file-input-label:hover {
+            border-color: var(--primary);
+            background: rgba(37, 99, 235, 0.05);
+        }
+
+        .file-input-label.dragover {
+            border-color: var(--primary);
+            background: rgba(37, 99, 235, 0.1);
+        }
+
+        .file-input-label strong {
+            display: block;
+            color: var(--text);
+            margin-bottom: 5px;
+        }
+
+        .file-input-label span {
+            display: block;
+            font-size: 12px;
+            color: var(--text-light);
+        }
+
+        .file-name {
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: #dbeafe;
+            color: #0c4a6e;
+            border-radius: 6px;
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .results-section {
+            margin-top: 40px;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 20px;
+            color: var(--text-light);
+            font-size: 14px;
+        }
+
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            background: #fee2e2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            color: #991b1b;
+            font-size: 14px;
+            margin-top: 12px;
+        }
+
+        .error::before {
+            content: "⚠";
+            font-weight: bold;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .success {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            background: #dcfce7;
+            border: 1px solid #bbf7d0;
+            border-radius: 8px;
+            color: #15803d;
+            font-size: 14px;
+            margin-top: 12px;
+        }
+
+        .success::before {
+            content: "✓";
+            font-weight: bold;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .answer-box {
+            background: var(--bg);
+            border-left: 4px solid var(--primary);
+            padding: 16px;
+            border-radius: 8px;
+            margin: 20px 0;
+            line-height: 1.7;
+        }
+
+        .snippets-container {
+            margin-top: 24px;
+        }
+
+        .snippet {
+            margin-bottom: 20px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            background: white;
+        }
+
+        .snippet-header {
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+        }
+
+        .snippet-meta {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .snippet-meta span {
+            color: var(--text-light);
+        }
+
+        .snippet-meta strong {
+            color: var(--text);
+        }
+
+        .similarity-score {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            background: rgba(16, 185, 129, 0.1);
+            color: #059669;
+            border-radius: 4px;
+            font-weight: 500;
+            font-size: 12px;
+        }
+
+        .code-block {
+            background: var(--bg-dark);
+            color: #e2e8f0;
+            padding: 16px;
+            overflow-x: auto;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .code-block code {
+            display: block;
+            white-space: pre;
+        }
+
+        .token-keyword { color: #ff7edb; }
+        .token-string { color: #4ade80; }
+        .token-comment { color: #6b7280; }
+        .token-function { color: #60a5fa; }
+
+        .query-info {
+            padding: 12px 16px;
+            background: #f0f9ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #0c4a6e;
+            margin-top: 12px;
+        }
+
+        .query-info strong {
+            color: #075985;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-light);
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .empty-state p {
+            font-size: 14px;
+        }
+
+        footer {
+            border-top: 1px solid var(--border);
+            padding: 20px 0;
+            margin-top: 60px;
+            text-align: center;
+            color: var(--text-light);
+            font-size: 12px;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 20px;
+            gap: 0;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 12px 16px;
+            text-align: center;
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-light);
+            transition: all 0.2s;
+            background: none;
+            border: none;
+            margin-bottom: -1px;
+        }
+
+        .tab:hover {
+            color: var(--text);
+            background: var(--bg);
+        }
+
+        .tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .progress-bar {
+            height: 4px;
+            background: var(--border);
+            border-radius: 2px;
+            margin: 12px 0;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--primary);
+            animation: progress 0.6s ease-in-out infinite;
+        }
+
+        @keyframes progress {
+            0%, 100% { width: 0%; }
+            50% { width: 100%; }
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .button-group button {
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="logo">
+                <div class="logo-icon">⚡</div>
+                <div>
+                    <h1>RAG System</h1>
+                </div>
+            </div>
+            <div class="status-badge" id="status">
+                <span>●</span> Ready
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="container">
+            <!-- Upload Section -->
+            <div class="grid">
+                <div class="panel">
+                    <h2>
+                        <span class="icon">📁</span>
+                        Upload Codebase
+                    </h2>
+                    
+                    <form id="uploadForm">
+                        <div class="form-group">
+                            <label>Select ZIP File</label>
+                            <div class="file-input-wrapper">
+                                <input 
+                                    type="file" 
+                                    id="zipInput" 
+                                    accept=".zip" 
+                                    required
+                                >
+                                <label for="zipInput" class="file-input-label" id="fileInputLabel">
+                                    <strong>Choose ZIP file or drag here</strong>
+                                    <span>Max 50MB | Code files only</span>
+                                </label>
+                            </div>
+                            <div id="fileName" class="file-name" style="display: none;">
+                                <span id="fileNameText"></span>
+                                <button type="button" class="secondary" onclick="clearFile()">Remove</button>
+                            </div>
+                        </div>
+
+                        <div id="uploadMessage"></div>
+
+                        <button type="submit" id="uploadBtn">
+                            <span>📤 Upload</span>
+                        </button>
+                    </form>
+
+                    <div id="uploadStats" style="display: none; margin-top: 20px;">
+                        <div style="padding: 16px; background: var(--bg); border-radius: 8px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span>Files extracted:</span>
+                                <strong id="filesExtracted">0</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>Total size:</span>
+                                <strong id="totalSize">0 B</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Query Section -->
+                <div class="panel">
+                    <h2>
+                        <span class="icon">🔍</span>
+                        Ask Question
+                    </h2>
+
+                    <form id="queryForm">
+                        <div class="form-group">
+                            <label>Enter your question or search query</label>
+                            <textarea 
+                                id="queryInput" 
+                                placeholder="e.g., How does authentication work? What are the database connections? Show me the main handler function..."
+                                required
+                            ></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Results to show</label>
+                            <input 
+                                type="text" 
+                                id="topK" 
+                                value="5" 
+                                placeholder="Number of results"
+                                disabled
+                            >
+                        </div>
+
+                        <div id="queryMessage"></div>
+
+                        <button type="submit" id="queryBtn" disabled>
+                            <span>🚀 Search</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            <div class="results-section" id="resultsSection" style="display: none;">
+                <div class="panel">
+                    <div class="tabs">
+                        <button class="tab active" data-tab="answer">
+                            <span>💡 Answer</span>
+                        </button>
+                        <button class="tab" data-tab="snippets">
+                            <span>📝 Retrieved Code</span>
+                        </button>
+                    </div>
+
+                    <!-- Answer Tab -->
+                    <div id="answerTab" class="tab-content active">
+                        <div id="answerContent"></div>
+                    </div>
+
+                    <!-- Snippets Tab -->
+                    <div id="snippetsTab" class="tab-content">
+                        <div id="snippetsContent"></div>
+                    </div>
+
+                    <div class="button-group">
+                        <button type="button" onclick="clearResults()" class="secondary">
+                            Clear Results
+                        </button>
+                        <button type="button" onclick="downloadResults()">
+                            📥 Export Results
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Empty State -->
+            <div id="emptyState" class="results-section">
+                <div class="panel">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🎯</div>
+                        <p>Upload a codebase and ask questions to get started</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>RAG System • Powered by FastAPI</p>
+        </div>
+    </footer>
+
+    <script>
+        // State
+        function getOrCreateSessionId() {
+            const key = 'rag_session_id';
+            let id = sessionStorage.getItem(key);
+            if (!id) {
+                id = crypto.randomUUID();
+                sessionStorage.setItem(key, id);
+            }
+            return id;
+        }
+
+        const state = {
+            apiUrl: window.location.origin,
+            sessionId: getOrCreateSessionId(),
+            selectedFile: null,
+            uploadId: null,
+            currentResults: null,
+            isLoading: false
+        };
+
+        // DOM Elements
+        const uploadForm = document.getElementById('uploadForm');
+        const queryForm = document.getElementById('queryForm');
+        const zipInput = document.getElementById('zipInput');
+        const fileInputLabel = document.getElementById('fileInputLabel');
+        const fileName = document.getElementById('fileName');
+        const fileNameText = document.getElementById('fileNameText');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const queryBtn = document.getElementById('queryBtn');
+        const uploadMessage = document.getElementById('uploadMessage');
+        const queryMessage = document.getElementById('queryMessage');
+        const resultsSection = document.getElementById('resultsSection');
+        const emptyState = document.getElementById('emptyState');
+        const statusBadge = document.getElementById('status');
+        const uploadStats = document.getElementById('uploadStats');
+
+        // File input handlers
+        zipInput.addEventListener('change', handleFileSelect);
+        fileInputLabel.addEventListener('dragover', handleDragOver);
+        fileInputLabel.addEventListener('dragleave', handleDragLeave);
+        fileInputLabel.addEventListener('drop', handleDrop);
+
+        function handleFileSelect(e) {
+            const file = e.target.files?.[0];
+            if (file) {
+                selectFile(file);
+            }
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            fileInputLabel.classList.add('dragover');
+        }
+
+        function handleDragLeave(e) {
+            e.preventDefault();
+            fileInputLabel.classList.remove('dragover');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            fileInputLabel.classList.remove('dragover');
+            const file = e.dataTransfer.files?.[0];
+            if (file && file.name.endsWith('.zip')) {
+                selectFile(file);
+            } else {
+                showMessage(uploadMessage, 'Please drop a .zip file', 'error');
+            }
+        }
+
+        function selectFile(file) {
+            if (!file.name.endsWith('.zip')) {
+                showMessage(uploadMessage, 'Only .zip files are supported', 'error');
+                return;
+            }
+            if (file.size > 50 * 1024 * 1024) {
+                showMessage(uploadMessage, 'File size exceeds 50MB limit', 'error');
+                return;
+            }
+            state.selectedFile = file;
+            fileNameText.textContent = file.name;
+            fileName.style.display = 'flex';
+            uploadMessage.innerHTML = '';
+        }
+
+        function clearFile() {
+            state.selectedFile = null;
+            zipInput.value = '';
+            fileName.style.display = 'none';
+            uploadMessage.innerHTML = '';
+        }
+
+        // Upload handler
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!state.selectedFile) {
+                showMessage(uploadMessage, 'Please select a file', 'error');
+                return;
+            }
+
+            await uploadFile(state.selectedFile);
+        });
+
+        async function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            setLoading(true, uploadBtn);
+            queryBtn.disabled = true;
+            showMessage(uploadMessage, 'Uploading...', 'info');
+
+            try {
+                const response = await fetch(
+                    `${state.apiUrl}/api/upload/zip?session_id=${encodeURIComponent(state.sessionId)}`,
+                    {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Upload failed');
+                }
+
+                const data = await response.json();
+                state.uploadId = data.upload_id;
+
+                document.getElementById('filesExtracted').textContent = data.extracted_files_count || 0;
+                document.getElementById('totalSize').textContent = formatBytes(data.total_extracted_size || 0);
+                uploadStats.style.display = 'block';
+
+                showMessage(uploadMessage, `✓ Extracted ${data.extracted_files_count || 0} files`, 'success');
+
+                const statsBefore = await fetch(
+                    `${state.apiUrl}/api/query/stats?session_id=${encodeURIComponent(state.sessionId)}`
+                ).then(r => r.json());
+                const baselineCount = statsBefore.collection_count || 0;
+
+                showMessage(uploadMessage, 'Indexing repository...', 'info');
+
+                const processResponse = await fetch(
+                    `${state.apiUrl}/api/upload/zip/process?upload_id=${encodeURIComponent(data.upload_id)}&session_id=${encodeURIComponent(state.sessionId)}`,
+                    { method: 'POST' }
+                );
+
+                if (!processResponse.ok) {
+                    const error = await processResponse.json();
+                    throw new Error(error.detail || 'Indexing failed to start');
+                }
+
+                const processData = await processResponse.json();
+                const finalStats = await waitForIndexing(baselineCount);
+
+                showMessage(
+                    uploadMessage,
+                    `✓ Indexed ${processData.files_queued} files · ${finalStats.collection_count} chunks in store`,
+                    'success'
+                );
+
+                queryBtn.disabled = false;
+
+            } catch (error) {
+                console.error('Upload error:', error);
+                showMessage(uploadMessage, `Error: ${error.message}`, 'error');
+                queryBtn.disabled = true;
+            } finally {
+                setLoading(false, uploadBtn);
+            }
+        }
+
+        async function waitForIndexing(baselineCount) {
+            const maxAttempts = 60;
+            let lastCount = baselineCount;
+
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                await sleep(2000);
+                const stats = await fetch(
+                    `${state.apiUrl}/api/query/stats?session_id=${encodeURIComponent(state.sessionId)}`
+                ).then(r => r.json());
+                const currentCount = stats.collection_count || 0;
+
+                if (currentCount > baselineCount) {
+                    if (currentCount === lastCount && attempt > 0) {
+                        return stats;
+                    }
+                    lastCount = currentCount;
+                }
+            }
+
+            throw new Error('Indexing timed out. Check server logs and try again.');
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // Query handler
+        queryForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const query = document.getElementById('queryInput').value;
+            const topK = parseInt(document.getElementById('topK').value) || 5;
+
+            if (!query.trim()) {
+                showMessage(queryMessage, 'Please enter a query', 'error');
+                return;
+            }
+
+            await performQuery(query, topK);
+        });
+
+        async function performQuery(query, topK) {
+            setLoading(true, queryBtn);
+            showMessage(queryMessage, 'Searching...', 'info');
+
+            try {
+                const response = await fetch(`${state.apiUrl}/api/query/search`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query: query,
+                        top_k: topK,
+                        session_id: state.sessionId
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Query failed');
+                }
+
+                const data = await response.json();
+                console.log("QUERY RESPONSE:", data);
+                state.currentResults = data;
+
+                displayResults(data);
+                showMessage(queryMessage, '', '');
+                resultsSection.style.display = 'block';
+                emptyState.style.display = 'none';
+
+            } catch (error) {
+                console.error('FULL QUERY ERROR:', error);
+                if (error instanceof Error) {
+                    console.error('ERROR MESSAGE:', error.message);
+                    console.error('ERROR STACK:', error.stack);
+            }
+                showMessage(queryMessage, `Error: ${error.message}`, 'error');
+            } finally {
+                setLoading(false, queryBtn);
+            }
+        }
+
+        function displayResults(results) {
+            // Display answer
+            const answerContent = document.getElementById('answerContent');
+            const answer = results.answer || 'No answer generated';
+            answerContent.innerHTML = `
+                <div class="answer-box">
+                    <p>${escapeHtml(answer)}</p>
+                </div>
+                <div class="query-info">
+                    <strong>Model:</strong> ${escapeHtml(results.model)} | 
+                    <strong>Tokens:</strong> ${results.tokens_used} | 
+                    <strong>Retrieved:</strong> ${results.context.length} snippets
+                </div>
+            `;
+
+            // Display snippets
+            const snippetsContent = document.getElementById('snippetsContent');
+            if (results.context && results.context.length > 0) {
+                snippetsContent.innerHTML = results.context.map((snippet, idx) => {
+                    const filePath = snippet.file_path || snippet.filename || 'unknown';
+                    const func = snippet.function_name ? `Function: ${snippet.function_name}()` : '';
+                    const lines = (snippet.start_line && snippet.end_line)
+                        ? `Lines: ${snippet.start_line}-${snippet.end_line}` : '';
+                    const group = snippet.context_group
+                        ? `<span><strong>Group:</strong> ${escapeHtml(snippet.context_group)}</span>` : '';
+                    return `
+                    <div class="snippet">
+                        <div class="snippet-header">
+                            <div class="snippet-meta">
+                                <span><strong>File:</strong> ${escapeHtml(filePath)}</span>
+                                ${func ? `<span><strong>${escapeHtml(func)}</strong></span>` : ''}
+                                ${lines ? `<span>${escapeHtml(lines)}</span>` : ''}
+                                <span><strong>Language:</strong> ${escapeHtml(snippet.language)}</span>
+                                ${group}
+                                <div class="similarity-score">
+                                    🎯 ${(snippet.similarity_score * 100).toFixed(0)}% match
+                                </div>
+                            </div>
+                        </div>
+                        <div class="code-block">
+                            <code>${escapeHtml(snippet.content.substring(0, 500))}${snippet.content.length > 500 ? '\n...' : ''}</code>
+                        </div>
+                    </div>`;
+                }).join('');
+            } else {
+                snippetsContent.innerHTML = '<div class="empty-state"><p>No snippets retrieved</p></div>';
+            }
+        }
+
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabName = tab.dataset.tab;
+                
+                // Remove active from all tabs and contents
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                // Add active to clicked tab and corresponding content
+                tab.classList.add('active');
+                document.getElementById(tabName + 'Tab').classList.add('active');
+            });
+        });
+
+        // Utility functions
+        function showMessage(element, message, type) {
+            if (!message) {
+                element.innerHTML = '';
+                return;
+            }
+
+            let className = type === 'error' ? 'error' : type === 'success' ? 'success' : 'info';
+            if (type === 'info') {
+                className = 'loading';
+                element.innerHTML = `<span class="spinner"></span><span>${escapeHtml(message)}</span>`;
+            } else {
+                element.innerHTML = `<div class="${className}">${escapeHtml(message)}</div>`;
+            }
+        }
+
+        function setLoading(loading, button) {
+            state.isLoading = loading;
+            button.disabled = loading;
+            if (loading) {
+                button.innerHTML = '<span class="spinner"></span><span>Loading...</span>';
+            } else {
+                button.innerHTML = button.dataset.originalText || button.innerHTML;
+            }
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        function clearResults() {
+            resultsSection.style.display = 'none';
+            emptyState.style.display = 'block';
+            state.currentResults = null;
+            document.getElementById('queryInput').value = '';
+        }
+
+        function downloadResults() {
+            if (!state.currentResults) return;
+
+            const results = {
+                timestamp: new Date().toISOString(),
+                query: document.getElementById('queryInput').value,
+                answer: state.currentResults.answer,
+                model: state.currentResults.model,
+                snippets: state.currentResults.context.map(s => ({
+                    file: s.file_path || s.filename,
+                    function: s.function_name,
+                    lines: s.start_line && s.end_line ? `${s.start_line}-${s.end_line}` : null,
+                    language: s.language,
+                    similarity: s.similarity_score,
+                    content: s.content
+                }))
+            };
+
+            const dataStr = JSON.stringify(results, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `rag-results-${Date.now()}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Store original button text
+        uploadBtn.dataset.originalText = uploadBtn.innerHTML;
+        queryBtn.dataset.originalText = queryBtn.innerHTML;
+
+        // Check API status on load
+        window.addEventListener('load', () => {
+            checkApiStatus();
+        });
+
+        async function checkApiStatus() {
+    try {
+        console.log("Checking API health...");
+
+        const response = await fetch(`${state.apiUrl}/health`);
+
+        console.log("Health status:", response.status);
+
+        if (response.ok) {
+            statusBadge.className = 'status-badge';
+            statusBadge.innerHTML = '<span>●</span> Ready';
+
+            // Clear old offline messages
+            if (
+                uploadMessage.innerText.includes('API server not available')
+            ) {
+                uploadMessage.innerHTML = '';
+            }
+
+            if (
+                queryMessage.innerText.includes('API server not available')
+            ) {
+                queryMessage.innerHTML = '';
+            }
+
+            uploadBtn.disabled = false;
+
+            // Only enable query if upload already happened
+            if (state.uploadId) {
+                queryBtn.disabled = false;
+            }
+
+        } else {
+            console.error("Health endpoint returned:", response.status);
+            setStatusOffline();
+        }
+
+    } catch (err) {
+        console.error("Health check failed:", err);
+        setStatusOffline();
+    }
+}
+
+        function setStatusOffline() {
+            statusBadge.className = 'status-badge offline';
+            statusBadge.textContent = '● Offline';
+            uploadBtn.disabled = true;
+            queryBtn.disabled = true;
+        }
+
+        // Check API status periodically
+        setInterval(async () => {
+    await checkApiStatus();
+}, 30000);
+    </script>
+</body>
+</html>
