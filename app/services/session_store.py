@@ -6,7 +6,7 @@ import logging
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +19,8 @@ class SessionData:
 
     chunks: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     fingerprints: Set[str] = field(default_factory=set)
+    project_description: str = ""
+    sample_questions: List[str] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
     last_accessed_at: float = field(default_factory=time.time)
 
@@ -130,6 +132,8 @@ class SessionStore:
             cleared = session.chunk_count
             session.chunks.clear()
             session.fingerprints.clear()
+            session.project_description = ""
+            session.sample_questions.clear()
             session.touch()
             logger.info(
                 "session_cleared session_id=%s chunks_removed=%d",
@@ -137,6 +141,34 @@ class SessionStore:
                 cleared,
             )
             return cleared
+
+    def set_project_overview(
+        self,
+        session_id: str,
+        description: str,
+        sample_questions: List[str],
+    ) -> None:
+        with self._lock:
+            session = self.get_or_create(session_id)
+            session.project_description = description
+            session.sample_questions = list(sample_questions)
+            session.touch()
+
+    def get_project_overview(self, session_id: str) -> Dict[str, Any]:
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None:
+                return {
+                    "ready": False,
+                    "description": "",
+                    "sample_questions": [],
+                }
+            return {
+                "ready": session.chunk_count > 0 and bool(session.sample_questions),
+                "description": session.project_description,
+                "sample_questions": list(session.sample_questions),
+                "total_chunks": session.chunk_count,
+            }
 
 
 _session_store: Optional[SessionStore] = None

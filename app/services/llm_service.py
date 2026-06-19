@@ -1,8 +1,8 @@
 
-"""LLM service for generating responses using Google Gemini"""
+"""LLM service for generating responses using Google Gemini (per-request API key)."""
 
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 import google.generativeai as genai
 
@@ -10,47 +10,26 @@ logger = logging.getLogger(__name__)
 
 
 class LLMService:
-    """Interface with Gemini for generating responses"""
+    """Interface with Gemini using a user-supplied API key per request."""
 
     def __init__(
         self,
         model: str = "gemini-2.5-flash",
-        temperature: float = 0.7
+        temperature: float = 0.7,
     ):
         self.model = model
         self.temperature = temperature
-        self._client = None
-        self._initialize_client()
-
-    def _initialize_client(self):
-        """Initialize Gemini client"""
-        try:
-            from app.utils.config import get_settings
-
-            settings = get_settings()
-
-            if not settings.GOOGLE_API_KEY:
-                raise ValueError("GOOGLE_API_KEY is missing")
-
-            genai.configure(api_key=settings.GOOGLE_API_KEY)
-
-            self._client = genai.GenerativeModel(self.model)
-
-            logger.info(f"Initialized Gemini client: {self.model}")
-
-        except Exception as e:
-            logger.error(f"Failed to initialize Gemini client: {e}")
-            self._client = None
 
     async def generate_response(
         self,
         query: str,
         context_chunks: List[str],
-        system_prompt: str | None = None
+        api_key: str,
+        system_prompt: str | None = None,
     ) -> Dict[str, Any]:
-        """
-        Generate response from Gemini
-        """
+        """Generate response from Gemini using the caller's API key."""
+        if not api_key or not api_key.strip():
+            raise ValueError("Gemini API key is required")
 
         try:
             context = "\n\n".join(
@@ -77,20 +56,24 @@ USER QUESTION:
 """
 
             estimated_tokens = max(1, len(full_prompt) // 4)
-            logger.info("FINAL_CONTEXT_SENT_TO_LLM estimated_tokens=%d chunks=%d", estimated_tokens, len(context_chunks))
+            logger.info(
+                "FINAL_CONTEXT_SENT_TO_LLM estimated_tokens=%d chunks=%d",
+                estimated_tokens,
+                len(context_chunks),
+            )
             for i, chunk in enumerate(context_chunks):
                 preview = chunk[:200].replace("\n", " ")
                 logger.info("  LLM_CONTEXT_CHUNK[%d] preview=%s...", i, preview)
 
-            if self._client is None:
-                raise ValueError("Gemini client not initialized")
+            genai.configure(api_key=api_key.strip())
+            client = genai.GenerativeModel(self.model)
 
-            response = self._client.generate_content(
+            response = client.generate_content(
                 full_prompt,
                 generation_config={
                     "temperature": self.temperature,
                     "max_output_tokens": 1000,
-                }
+                },
             )
 
             answer = response.text if response.text else "No response generated."
@@ -118,34 +101,29 @@ USER QUESTION:
             }
 
         except Exception as e:
-            logger.error(f"Gemini generation failed: {e}")
-
+            logger.error("Gemini generation failed: %s", e)
             return {
                 "answer": f"LLM generation failed: {str(e)}",
                 "model": self.model,
                 "tokens_used": 0,
-                "provider": "google"
+                "provider": "google",
             }
 
 
-# Global service instance
-_llm_service: LLMService | None = None
+_llm_service: Optional[LLMService] = None
 
 
 async def get_llm_service() -> LLMService:
-    """Get LLM service instance"""
-
+    """Get LLM service instance (model settings only; API key is per-request)."""
     global _llm_service
 
     if _llm_service is None:
         from app.utils.config import get_settings
 
         settings = get_settings()
-
         _llm_service = LLMService(
             model=settings.LLM_MODEL,
-            temperature=settings.LLM_TEMPERATURE
+            temperature=settings.LLM_TEMPERATURE,
         )
 
     return _llm_service
-

@@ -11,7 +11,6 @@ services:
     environment:
       - DEBUG=False
       - ENVIRONMENT=${ENVIRONMENT:-production}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - LLM_MODEL=${LLM_MODEL:-gemini-2.5-flash}
       - LLM_TEMPERATURE=${LLM_TEMPERATURE:-0.7}
       - AUTH_ENABLED=${AUTH_ENABLED:-false}

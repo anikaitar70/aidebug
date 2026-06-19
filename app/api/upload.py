@@ -164,6 +164,27 @@ async def index_extracted_zip(session_id: str, upload_id: str) -> None:
     logger.info("  Embeddings stored: %d", embeddings_stored)
     logger.info("  Session chunk count: %d", count_after)
 
+    # Generate project description + sample questions (no Gemini call)
+    try:
+        from app.services.project_overview_service import generate_project_overview
+
+        session = session_store.get(session_id)
+        if session and session.chunks:
+            overview = generate_project_overview(session.chunks)
+            session_store.set_project_overview(
+                session_id,
+                overview["description"],
+                overview["sample_questions"],
+            )
+            logger.info(
+                "Project overview generated session=%s files=%d questions=%d",
+                session_id,
+                overview["total_files"],
+                len(overview["sample_questions"]),
+            )
+    except Exception as exc:
+        logger.warning("Failed to generate project overview: %s", exc)
+
     # Remove uploaded files after indexing — embeddings live in session memory only
     try:
         from app.utils.zip_handler import get_zip_extractor

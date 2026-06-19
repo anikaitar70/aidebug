@@ -1,7 +1,7 @@
 """Application configuration"""
 
 from typing import List
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -42,20 +42,21 @@ class Settings(BaseSettings):
     SESSION_TTL_SECONDS: int = 30 * 60  # 30 minutes inactivity
     SESSION_CLEANUP_INTERVAL_SECONDS: int = 5 * 60  # background cleanup every 5 min
     
-    # LLM
+    # LLM (Gemini key is supplied per-request by the user — not stored server-side)
     LLM_MODEL: str = "gemini-2.5-flash"
     LLM_TEMPERATURE: float = 0.7
-    GOOGLE_API_KEY: str | None = None
     GOOGLE_LLM_MODEL: str = "gemini-2.5-flash"
     RAG_LOG_PATH: str = "logs/rag_queries.jsonl"
     
     # Processing
     CHUNK_SIZE: int = 1000
     CHUNK_OVERLAP: int = 200
-    
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore",
+    )
 
     @property
     def is_production(self) -> bool:

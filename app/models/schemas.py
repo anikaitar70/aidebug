@@ -37,6 +37,19 @@ class QueryRequest(BaseModel):
     top_k: int = Field(default=5, ge=1, le=20, description="Number of results to return")
     filters: Optional[dict] = Field(default=None, description="Optional filters")
     session_id: Optional[str] = Field(default=None, description="Browser session identifier")
+    gemini_api_key: Optional[str] = Field(
+        default=None,
+        description="User's Google Gemini API key (not stored server-side)",
+    )
+
+
+class ProjectOverviewResponse(BaseModel):
+    """Project summary and suggested questions after indexing"""
+    ready: bool = False
+    description: str = ""
+    sample_questions: List[str] = Field(default_factory=list)
+    total_chunks: int = 0
+    total_files: int = 0
 
 
 class RetrievedContext(BaseModel):

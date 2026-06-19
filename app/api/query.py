@@ -9,13 +9,16 @@ from fastapi import APIRouter, HTTPException, Query, Header, Request
 from app.models.schemas import (
     QueryRequest,
     QueryResponse,
-    RetrievedContext
+    RetrievedContext,
+    ProjectOverviewResponse,
 )
 from app.services.embedding_service import get_embedding_service
 from app.services.retrieval_service import get_retrieval_service
 from app.services.llm_service import get_llm_service
 from app.services.query_classifier import classify_query_intent
+from app.services.session_store import get_session_store
 from app.security import limiter
+from app.utils.gemini_auth import resolve_gemini_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +45,11 @@ def _resolve_session_id(
 
 @router.post("/search", response_model=QueryResponse)
 @limiter.limit("120/hour")
-async def search_code(request: Request, payload: QueryRequest):
+async def search_code(
+    request: Request,
+    payload: QueryRequest,
+    x_gemini_api_key: str | None = Header(default=None, alias="X-Gemini-Api-Key"),
+):
     """
     Search for relevant code chunks using semantic search
     
@@ -58,6 +65,7 @@ async def search_code(request: Request, payload: QueryRequest):
             raise HTTPException(status_code=400, detail="Query cannot be empty")
 
         session_id = _resolve_session_id(payload.session_id)
+        gemini_key = resolve_gemini_api_key(payload.gemini_api_key, x_gemini_api_key)
         
         embedding_service = await get_embedding_service()
         query_embedding = await embedding_service.embed_text(payload.query)
@@ -140,7 +148,8 @@ async def search_code(request: Request, payload: QueryRequest):
         grouped_context = retrieval_service.assemble_grouped_context(results)
         llm_result = await llm_service.generate_response(
             query=payload.query,
-            context_chunks=grouped_context
+            context_chunks=grouped_context,
+            api_key=gemini_key,
         )
         logger.info("  Model used: %s", llm_result['model'])
         
@@ -315,7 +324,11 @@ async def clear_session(
 
 @router.post("/debug")
 @limiter.limit("60/hour")
-async def debug_query(request: Request, payload: QueryRequest):
+async def debug_query(
+    request: Request,
+    payload: QueryRequest,
+    x_gemini_api_key: str | None = Header(default=None, alias="X-Gemini-Api-Key"),
+):
     """
     Full pipeline debug trace: raw search → rerank → final → LLM context → answer.
 
@@ -326,6 +339,7 @@ async def debug_query(request: Request, payload: QueryRequest):
             raise HTTPException(status_code=400, detail="Query cannot be empty")
 
         session_id = _resolve_session_id(payload.session_id)
+        gemini_key = resolve_gemini_api_key(payload.gemini_api_key, x_gemini_api_key)
 
         embedding_service = await get_embedding_service()
         query_embedding = await embedding_service.embed_text(payload.query)
@@ -363,6 +377,7 @@ async def debug_query(request: Request, payload: QueryRequest):
             llm_result = await llm_service.generate_response(
                 query=payload.query,
                 context_chunks=llm_context["grouped_context_strings"],
+                api_key=gemini_key,
             )
             answer = llm_result["answer"]
             model_used = llm_result["model"]
@@ -398,3 +413,27 @@ async def debug_query(request: Request, payload: QueryRequest):
 
         logger.error("DEBUG QUERY FAILED: %s\n%s", e, traceback.format_exc())
         raise HTTPException(status_code=500, detail="Debug query failed")
+
+
+@router.get("/project-overview", response_model=ProjectOverviewResponse)
+@limiter.limit("120/hour")
+async def get_project_overview(
+    request: Request,
+    session_id: str | None = Query(default=None),
+    x_session_id: str | None = Header(default=None, alias="X-Session-Id"),
+):
+    """Return project description and sample questions generated after indexing."""
+    try:
+        resolved_session_id = _resolve_session_id(None, session_id, x_session_id)
+        overview = get_session_store().get_project_overview(resolved_session_id)
+        return ProjectOverviewResponse(
+            ready=overview.get("ready", False),
+            description=overview.get("description", ""),
+            sample_questions=overview.get("sample_questions", []),
+            total_chunks=overview.get("total_chunks", 0),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Project overview failed: {e}")
+        raise HTTPException(status_code=500, detail="Project overview failed")

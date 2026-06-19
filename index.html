@@ -529,6 +529,57 @@
         .button-group button {
             flex: 1;
         }
+
+        .project-overview {
+            margin-bottom: 20px;
+            padding: 16px;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .project-overview h3 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #166534;
+        }
+
+        .project-overview p {
+            font-size: 13px;
+            color: #14532d;
+            line-height: 1.6;
+            margin-bottom: 12px;
+        }
+
+        .sample-questions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .sample-question-btn {
+            padding: 8px 12px;
+            font-size: 12px;
+            background: white;
+            color: var(--primary);
+            border: 1px solid #93c5fd;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .sample-question-btn:hover {
+            background: #eff6ff;
+            border-color: var(--primary);
+        }
+
+        .api-key-hint {
+            font-size: 11px;
+            color: var(--text-light);
+            margin-top: 6px;
+        }
     </style>
 </head>
 <body>
@@ -607,10 +658,30 @@
 
                     <form id="queryForm">
                         <div class="form-group">
+                            <label for="geminiApiKey">Your Gemini API Key</label>
+                            <input
+                                type="password"
+                                id="geminiApiKey"
+                                placeholder="Paste your Google AI / Gemini API key"
+                                autocomplete="off"
+                            >
+                            <p class="api-key-hint">
+                                Stored only in your browser. Never saved on the server.
+                                <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Get a key</a>
+                            </p>
+                        </div>
+
+                        <div id="projectOverview" class="project-overview">
+                            <h3>📋 About this project</h3>
+                            <p id="projectDescription"></p>
+                            <div class="sample-questions" id="sampleQuestions"></div>
+                        </div>
+
+                        <div class="form-group">
                             <label>Enter your question or search query</label>
                             <textarea 
                                 id="queryInput" 
-                                placeholder="e.g., How does authentication work? What are the database connections? Show me the main handler function..."
+                                placeholder="Pick a sample question above or type your own..."
                                 required
                             ></textarea>
                         </div>
@@ -698,13 +769,30 @@
             return id;
         }
 
+        function getGeminiApiKey() {
+            const input = document.getElementById('geminiApiKey');
+            const key = (input?.value || sessionStorage.getItem('rag_gemini_api_key') || '').trim();
+            if (input && key) {
+                sessionStorage.setItem('rag_gemini_api_key', key);
+            }
+            return key;
+        }
+
+        function saveGeminiApiKey() {
+            const input = document.getElementById('geminiApiKey');
+            if (input?.value.trim()) {
+                sessionStorage.setItem('rag_gemini_api_key', input.value.trim());
+            }
+        }
+
         const state = {
             apiUrl: window.location.origin,
             sessionId: getOrCreateSessionId(),
             selectedFile: null,
             uploadId: null,
             currentResults: null,
-            isLoading: false
+            isLoading: false,
+            projectReady: false
         };
 
         // DOM Elements
@@ -722,6 +810,16 @@
         const emptyState = document.getElementById('emptyState');
         const statusBadge = document.getElementById('status');
         const uploadStats = document.getElementById('uploadStats');
+        const geminiApiKeyInput = document.getElementById('geminiApiKey');
+        const projectOverview = document.getElementById('projectOverview');
+
+        // Restore saved API key
+        const savedKey = sessionStorage.getItem('rag_gemini_api_key');
+        if (savedKey && geminiApiKeyInput) {
+            geminiApiKeyInput.value = savedKey;
+        }
+        geminiApiKeyInput?.addEventListener('change', saveGeminiApiKey);
+        geminiApiKeyInput?.addEventListener('blur', saveGeminiApiKey);
 
         // File input handlers
         zipInput.addEventListener('change', handleFileSelect);
@@ -804,6 +902,7 @@
                     `${state.apiUrl}/api/query/session?session_id=${encodeURIComponent(state.sessionId)}`,
                     { method: 'DELETE' }
                 ).catch(() => {});
+                clearProjectOverview();
 
                 showMessage(uploadMessage, 'Uploading...', 'info');
                 const response = await fetch(
@@ -854,6 +953,7 @@
                 );
 
                 queryBtn.disabled = false;
+                await loadProjectOverview();
 
             } catch (error) {
                 console.error('Upload error:', error);
@@ -886,6 +986,39 @@
             throw new Error('Indexing timed out. Check server logs and try again.');
         }
 
+        async function loadProjectOverview() {
+            try {
+                const res = await fetch(
+                    `${state.apiUrl}/api/query/project-overview?session_id=${encodeURIComponent(state.sessionId)}`
+                );
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!data.ready && !data.description) return;
+
+                document.getElementById('projectDescription').textContent =
+                    data.description || 'Project indexed successfully.';
+
+                const container = document.getElementById('sampleQuestions');
+                container.innerHTML = '';
+                (data.sample_questions || []).forEach((q) => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'sample-question-btn';
+                    btn.textContent = q;
+                    btn.addEventListener('click', () => {
+                        document.getElementById('queryInput').value = q;
+                        document.getElementById('queryInput').focus();
+                    });
+                    container.appendChild(btn);
+                });
+
+                projectOverview.style.display = 'block';
+                state.projectReady = true;
+            } catch (e) {
+                console.warn('Could not load project overview:', e);
+            }
+        }
+
         function sleep(ms) {
             return new Promise(resolve => setTimeout(resolve, ms));
         }
@@ -905,17 +1038,28 @@
         });
 
         async function performQuery(query, topK) {
+            const geminiKey = getGeminiApiKey();
+            if (!geminiKey) {
+                showMessage(queryMessage, 'Please enter your Gemini API key first.', 'error');
+                geminiApiKeyInput?.focus();
+                return;
+            }
+
             setLoading(true, queryBtn);
             showMessage(queryMessage, 'Searching...', 'info');
 
             try {
                 const response = await fetch(`${state.apiUrl}/api/query/search`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Gemini-Api-Key': geminiKey,
+                    },
                     body: JSON.stringify({
                         query: query,
                         top_k: topK,
-                        session_id: state.sessionId
+                        session_id: state.sessionId,
+                        gemini_api_key: geminiKey,
                     })
                 });
 
@@ -1059,6 +1203,13 @@
             emptyState.style.display = 'block';
             state.currentResults = null;
             document.getElementById('queryInput').value = '';
+        }
+
+        function clearProjectOverview() {
+            projectOverview.style.display = 'none';
+            document.getElementById('projectDescription').textContent = '';
+            document.getElementById('sampleQuestions').innerHTML = '';
+            state.projectReady = false;
         }
 
         function downloadResults() {
