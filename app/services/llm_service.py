@@ -76,6 +76,12 @@ USER QUESTION:
 {query}
 """
 
+            estimated_tokens = max(1, len(full_prompt) // 4)
+            logger.info("FINAL_CONTEXT_SENT_TO_LLM estimated_tokens=%d chunks=%d", estimated_tokens, len(context_chunks))
+            for i, chunk in enumerate(context_chunks):
+                preview = chunk[:200].replace("\n", " ")
+                logger.info("  LLM_CONTEXT_CHUNK[%d] preview=%s...", i, preview)
+
             if self._client is None:
                 raise ValueError("Gemini client not initialized")
 
@@ -106,7 +112,9 @@ USER QUESTION:
                 "answer": answer,
                 "model": self.model,
                 "tokens_used": tokens_used,
-                "provider": "google"
+                "provider": "google",
+                "prompt_context_chars": len(context),
+                "estimated_prompt_tokens": estimated_tokens,
             }
 
         except Exception as e:

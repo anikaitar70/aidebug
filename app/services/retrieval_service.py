@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import numpy as np
 
 from app.services.query_classifier import (
+    ML_PATH_KEYWORDS,
     QueryIntent,
     assign_context_group,
     classify_query_intent,
@@ -18,6 +19,14 @@ from app.services.query_classifier import (
     extract_query_terms,
 )
 from app.services.session_store import SessionData, get_session_store
+from app.utils.path_filters import (
+    IMPLEMENTATION_EXTENSIONS,
+    compute_path_importance,
+    is_excluded_at_retrieval,
+    matches_ml_path_keywords,
+    path_importance_boost,
+    path_importance_penalty,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +169,11 @@ class RetrievalService:
 
         for chunk_id, item in session.chunks.items():
             if filters and not all(item["metadata"].get(k) == v for k, v in filters.items()):
+                continue
+            file_path = str(
+                item["metadata"].get("file_path") or item["metadata"].get("filename") or ""
+            )
+            if is_excluded_at_retrieval(file_path):
                 continue
             chunk_ids.append(chunk_id)
             embeddings.append(item["embedding"])
@@ -477,6 +491,24 @@ class RetrievalService:
                 return False
             return True
 
+        if intent.primary == "ml":
+            if function_name in {s.lower() for s in intent.boost_symbols}:
+                return True
+            if matches_ml_path_keywords(file_path, ML_PATH_KEYWORDS):
+                return True
+            if any(m in content_lower for m in intent.content_markers):
+                return True
+            if "node_modules" in file_path:
+                return False
+            if ".test." in file_path or ".spec." in file_path:
+                return False
+            if file_path.endswith(("app.js", "app.tsx", "app.jsx")):
+                if not any(m in content_lower for m in intent.content_markers):
+                    return False
+            if strict:
+                return compute_path_importance(file_path) >= 0.55
+            return compute_path_importance(file_path) >= 0.35
+
         if intent.primary in ("function", "route"):
             if function_name:
                 return True
@@ -620,6 +652,29 @@ class RetrievalService:
         if intent.primary in ("jwt", "function") and file_path.endswith((".html", ".md", ".json")):
             score -= 0.30
 
+        # Path-aware retrieval (Phase 6)
+        score += path_importance_boost(file_path)
+        score -= path_importance_penalty(file_path)
+
+        if intent.primary == "ml":
+            for kw in ML_PATH_KEYWORDS:
+                if kw in file_path:
+                    score += 0.15
+            for term in query_terms:
+                if term in ("classify", "classification", "predict", "prediction", "model", "inference"):
+                    if term.rstrip("ion") in file_path or term in file_path:
+                        score += 0.12
+            if "node_modules" in file_path:
+                score -= 0.60
+            if ".test." in file_path or ".spec." in file_path:
+                score -= 0.35
+            if file_path.endswith(("app.js", "app.tsx", "app.jsx")):
+                score -= 0.45
+            if "/frontend/" in file_path and not any(
+                m in file_path for m in ("api", "client", "service")
+            ):
+                score -= 0.20
+
         return score
 
     def _enhanced_score_chunk(
@@ -649,6 +704,19 @@ class RetrievalService:
 
         if self._contains_definition(content):
             boost += 0.06
+
+        # File-type prioritization (Phase 8)
+        file_path = str(meta.get("file_path") or meta.get("filename") or "").lower()
+        ext = ""
+        if "." in file_path:
+            ext = "." + file_path.rsplit(".", 1)[-1]
+        if intent.primary in ("ml", "function", "architecture", "general"):
+            if ext in IMPLEMENTATION_EXTENSIONS:
+                boost += 0.08
+            if ".test." in file_path or ".spec." in file_path:
+                boost -= 0.20
+            if "readme" in file_path or file_path.endswith(".md"):
+                boost -= 0.15
 
         boost += self._symbol_score(item, intent, query_terms)
         boost += self._filename_score(item, query_terms, intent)
@@ -901,6 +969,238 @@ class RetrievalService:
 
     def get_chunk_count(self, session_id: str) -> int:
         return self._session_store.chunk_count(session_id)
+
+    @staticmethod
+    def check_answerability(
+        results: List[Dict[str, Any]],
+        intent: QueryIntent,
+        query_text: str,
+    ) -> Tuple[bool, str]:
+        """
+        Determine whether retrieved chunks can answer the question (Phase 7).
+
+        Returns (is_answerable, reason).
+        """
+        if not results:
+            return False, "no_results"
+
+        implementation_chunks = 0
+        ml_chunks = 0
+        ui_only = 0
+
+        for item in results:
+            meta = item.get("metadata", {})
+            file_path = str(meta.get("file_path") or meta.get("filename") or "")
+            content_lower = item.get("content", "").lower()
+            importance = compute_path_importance(file_path)
+
+            if importance >= 0.55:
+                implementation_chunks += 1
+            if intent.primary == "ml":
+                if (
+                    matches_ml_path_keywords(file_path, ML_PATH_KEYWORDS)
+                    or any(m in content_lower for m in intent.content_markers)
+                    or str(meta.get("function_name", "")).lower() in {s.lower() for s in intent.boost_symbols}
+                ):
+                    ml_chunks += 1
+                if importance < 0.35 and not any(
+                    m in content_lower for m in intent.content_markers
+                ):
+                    ui_only += 1
+
+        if intent.primary == "ml":
+            if ml_chunks == 0 and implementation_chunks == 0:
+                return False, "ml_implementation_not_retrieved"
+            if ml_chunks == 0 and ui_only >= len(results) - 1:
+                return False, "ui_only_context"
+
+        if intent.primary in ("function", "jwt", "auth", "route"):
+            has_definitions = any(
+                str(item.get("metadata", {}).get("function_name") or item.get("metadata", {}).get("class_name"))
+                for item in results
+            )
+            if not has_definitions and implementation_chunks == 0:
+                return False, "no_implementation_definitions"
+
+        return True, "ok"
+
+    async def trace_retrieval(
+        self,
+        session_id: str,
+        query_embedding: List[float],
+        query_text: str,
+        top_k: int = 5,
+    ) -> Dict[str, Any]:
+        """Diagnostic trace of retrieval pipeline stages (Phase 1)."""
+        session = self._session_store.get(session_id)
+        if session is None or not session.chunks:
+            return {"error": "empty_session"}
+
+        intent = classify_query_intent(query_text)
+        query_terms = extract_query_terms(query_text)
+        effective_top_k = min(max(top_k, classify_top_k(query_text, intent)), 12)
+        fetch_k = min(max(effective_top_k * 3, effective_top_k + 10), 60)
+
+        raw = self._retrieve_batch(query_embedding, session, fetch_k, None)
+        raw_trace = []
+        for item in raw[:20]:
+            sim = 1.0 - float(item.get("distance", 0))
+            meta = item.get("metadata", {})
+            raw_trace.append({
+                "file_path": meta.get("file_path", meta.get("filename", "")),
+                "function_name": meta.get("function_name", ""),
+                "vector_distance": round(float(item.get("distance", 0)), 4),
+                "vector_similarity": round(sim, 4),
+            })
+
+        reranked = self._enhanced_rerank(raw, query_text, query_terms, intent, effective_top_k)
+        rerank_trace = []
+        for item in reranked[:15]:
+            meta = item.get("metadata", {})
+            score = self._enhanced_score_chunk(
+                item, query_text, query_terms,
+                self._count_symbol_hits(reranked, query_text, query_terms),
+                intent,
+            )
+            rerank_trace.append({
+                "file_path": meta.get("file_path", meta.get("filename", "")),
+                "function_name": meta.get("function_name", ""),
+                "rank_score": round(score, 4),
+                "path_importance": round(
+                    compute_path_importance(str(meta.get("file_path", ""))), 3
+                ),
+            })
+
+        final = await self.retrieve_similar(
+            session_id=session_id,
+            query_embedding=query_embedding,
+            top_k=top_k,
+            query_text=query_text,
+            enhanced=True,
+        )
+        final_trace = []
+        for item in final:
+            meta = item.get("metadata", {})
+            final_trace.append({
+                "file_path": meta.get("file_path", meta.get("filename", "")),
+                "function_name": meta.get("function_name", ""),
+                "similarity": round(1.0 - float(item.get("distance", 0)), 4),
+                "context_group": item.get("context_group", ""),
+                "expansion_type": item.get("expansion_type", ""),
+            })
+
+        answerable, reason = self.check_answerability(final, intent, query_text)
+
+        return {
+            "query": query_text,
+            "intent": intent.primary,
+            "query_terms": query_terms,
+            "fetch_k": fetch_k,
+            "session_chunks": session.chunk_count,
+            "raw_vector_results": raw_trace,
+            "reranked_results": rerank_trace,
+            "final_results": final_trace,
+            "answerable": answerable,
+            "answerability_reason": reason,
+        }
+
+    def get_index_audit(self, session_id: str) -> Dict[str, Any]:
+        """Audit all indexed chunks in a session for stale-data detection."""
+        from collections import Counter
+
+        from app.utils.path_filters import audit_indexed_paths, categorize_indexed_path
+
+        session = self._session_store.get(session_id)
+        if session is None or not session.chunks:
+            return {
+                "session_id": session_id,
+                "total_chunks": 0,
+                "total_files": 0,
+                "indexed_paths": [],
+                "by_category": {},
+                "node_modules_chunks": 0,
+                "frontend_chunks": 0,
+                "backend_chunks": 0,
+                "test_chunks": 0,
+                "has_stale_excluded_paths": False,
+                "index_version": "none",
+            }
+
+        file_paths: List[str] = []
+        path_chunk_counts: Counter = Counter()
+        node_modules_chunks = 0
+        frontend_chunks = 0
+        backend_chunks = 0
+        test_chunks = 0
+        has_stale = False
+
+        for item in session.chunks.values():
+            meta = item.get("metadata", {})
+            fp = str(meta.get("file_path") or meta.get("filename") or "unknown")
+            file_paths.append(fp)
+            path_chunk_counts[fp] += 1
+            cat = categorize_indexed_path(fp)
+            if cat == "node_modules":
+                node_modules_chunks += 1
+                has_stale = True
+            elif cat == "frontend":
+                frontend_chunks += 1
+            elif cat == "backend":
+                backend_chunks += 1
+            elif cat == "tests":
+                test_chunks += 1
+            if is_excluded_at_retrieval(fp):
+                has_stale = True
+
+        unique_paths = sorted(set(file_paths))
+        path_audit = audit_indexed_paths(unique_paths)
+        top_paths = [
+            {"file_path": p, "chunk_count": path_chunk_counts[p]}
+            for p, _ in path_chunk_counts.most_common(15)
+        ]
+
+        return {
+            "session_id": session_id,
+            "total_chunks": session.chunk_count,
+            "total_files": len(unique_paths),
+            "indexed_paths": unique_paths[:50],
+            "top_indexed_paths": top_paths,
+            "by_category": path_audit.get("by_category", {}),
+            "node_modules_chunks": node_modules_chunks,
+            "frontend_chunks": frontend_chunks,
+            "backend_chunks": backend_chunks,
+            "test_chunks": test_chunks,
+            "has_stale_excluded_paths": has_stale,
+            "node_modules_indexed": path_audit.get("node_modules_indexed", False),
+            "index_version": "path_filters_v2",
+        }
+
+    @staticmethod
+    def build_llm_context_preview(results: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Build the exact context payload sent to Gemini with token estimate."""
+        grouped = RetrievalService.assemble_grouped_context(results)
+        full_text = "\n\n".join(
+            f"```\n{chunk}\n```" for chunk in grouped
+        )
+        chunks_detail = []
+        for item in results:
+            meta = item.get("metadata", {})
+            chunks_detail.append({
+                "file_path": meta.get("file_path", meta.get("filename", "")),
+                "function_name": meta.get("function_name", ""),
+                "class_name": meta.get("class_name", ""),
+                "similarity": round(1.0 - float(item.get("distance", 0)), 4),
+                "context_group": item.get("context_group", ""),
+                "content_chars": len(item.get("content", "")),
+            })
+
+        return {
+            "grouped_context_strings": grouped,
+            "full_prompt_context": full_text,
+            "chunks": chunks_detail,
+            "estimated_tokens": max(1, len(full_text) // 4),
+            "chunk_count": len(results),
+        }
 
 
 _retrieval_service: Optional[RetrievalService] = None

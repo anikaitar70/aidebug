@@ -796,9 +796,16 @@
 
             setLoading(true, uploadBtn);
             queryBtn.disabled = true;
-            showMessage(uploadMessage, 'Uploading...', 'info');
+            showMessage(uploadMessage, 'Clearing previous index...', 'info');
 
             try {
+                // Clear stale embeddings from prior uploads in this browser session
+                await fetch(
+                    `${state.apiUrl}/api/query/session?session_id=${encodeURIComponent(state.sessionId)}`,
+                    { method: 'DELETE' }
+                ).catch(() => {});
+
+                showMessage(uploadMessage, 'Uploading...', 'info');
                 const response = await fetch(
                     `${state.apiUrl}/api/upload/zip?session_id=${encodeURIComponent(state.sessionId)}`,
                     {

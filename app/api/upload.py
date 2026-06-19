@@ -17,6 +17,7 @@ from app.services.retrieval_service import get_retrieval_service
 from app.services.session_store import get_session_store
 from app.security import limiter
 from app.utils.config import get_settings
+from app.utils.path_filters import should_index_path
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,10 @@ async def process_uploaded_file(
     """Background task: parse, embed, and store file. Returns chunk count stored."""
     try:
         file_path = (relative_path or filename).replace('\\', '/')
+        if not should_index_path(file_path):
+            logger.debug("Skipping excluded path during indexing: %s", file_path)
+            return 0
+
         logger.info(f"Processing file: {file_path} (ID: {file_id}) for session {session_id}")
 
         language = CodeParser.get_language(file_path)
@@ -103,14 +108,33 @@ async def index_extracted_zip(session_id: str, upload_id: str) -> None:
 
     temp_dir = Path(tempfile.gettempdir()) / upload_id
     retrieval_service = await get_retrieval_service()
+    session_store = get_session_store()
+
+    # Clear stale embeddings from prior uploads in this session
+    cleared = session_store.clear_session(session_id)
+    if cleared:
+        logger.info(
+            "Re-index: cleared %d stale chunks from session %s before new upload",
+            cleared,
+            session_id,
+        )
+
     count_before = retrieval_service.get_chunk_count(session_id)
 
     files_processed = 0
     chunks_generated = 0
 
     for root, dirs, files in os.walk(temp_dir):
+        # Prune excluded directories during walk
+        dirs[:] = [
+            d for d in dirs
+            if should_index_path(str(Path(root).relative_to(temp_dir) / d))
+        ]
         for filename in files:
             file_path = Path(root) / filename
+            relative_path = str(file_path.relative_to(temp_dir)).replace('\\', '/')
+            if not should_index_path(relative_path):
+                continue
             try:
                 content = file_path.read_bytes()
                 content.decode('utf-8', errors='ignore')

@@ -180,6 +180,22 @@ class TestFileFiltering:
         for file in hidden_files:
             assert zip_extractor.should_extract(file) == False, f"Should not extract {file}"
 
+    def test_excluded_directories(self, zip_extractor):
+        """Test that dependency and build directories are excluded"""
+        excluded = [
+            'node_modules/lodash/index.js',
+            'frontend/dist/bundle.min.js',
+            'build/output.js',
+            'coverage/lcov.info',
+            '.next/static/chunk.js',
+            'venv/lib/python3.11/site.py',
+            '.git/config',
+            'package-lock.json',
+            'yarn.lock',
+        ]
+        for file in excluded:
+            assert zip_extractor.should_extract(file) == False, f"Should not extract {file}"
+
 
 class TestZipHandlerIntegration:
     """Integration tests for zip handler"""

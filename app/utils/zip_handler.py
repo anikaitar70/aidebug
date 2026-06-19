@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import List, Tuple, Dict
 from datetime import datetime
 
+from app.utils.path_filters import should_index_path
+
 logger = logging.getLogger(__name__)
 
 
@@ -97,6 +99,10 @@ class ZipExtractor:
         # Skip hidden files and common non-code files
         name = Path(filename).name
         if name.startswith('.') or name.startswith('__'):
+            return False
+
+        # Skip dependency, build, cache, and lockfile paths
+        if not should_index_path(filename):
             return False
         
         # Keep if it's a code file or has no extension (scripts, config files)

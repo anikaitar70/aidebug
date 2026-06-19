@@ -5,6 +5,8 @@ import re
 from typing import List, Optional, Set, Tuple
 from pathlib import Path
 
+from app.utils.path_filters import compute_path_importance
+
 logger = logging.getLogger(__name__)
 
 # Keywords to exclude when extracting call references
@@ -341,6 +343,7 @@ class CodeParser:
             'class_name': chunk.class_name or '',
             'imports': ','.join(chunk.imports[:30]),
             'references': ','.join(chunk.references[:50]),
+            'path_importance': compute_path_importance(file_path),
         }
 
     @staticmethod

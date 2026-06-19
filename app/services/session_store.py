@@ -121,6 +121,23 @@ class SessionStore:
             session = self._sessions.get(session_id)
             return session.chunk_count if session else 0
 
+    def clear_session(self, session_id: str) -> int:
+        """Remove all chunks from a session. Returns chunks cleared."""
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None:
+                return 0
+            cleared = session.chunk_count
+            session.chunks.clear()
+            session.fingerprints.clear()
+            session.touch()
+            logger.info(
+                "session_cleared session_id=%s chunks_removed=%d",
+                session_id,
+                cleared,
+            )
+            return cleared
+
 
 _session_store: Optional[SessionStore] = None
 

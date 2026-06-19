@@ -72,6 +72,30 @@ FUNCTION_PATTERNS = [
     r"\bdef\b",
 ]
 
+ML_PATTERNS = [
+    r"\bclassif(?:y|ies|ication|ier)\b",
+    r"\bpredict(?:ion|s|ing)?\b",
+    r"\binfer(?:ence|ring)?\b",
+    r"\bmodel\b",
+    r"\bmachine learning\b",
+    r"\bml\b",
+    r"\btrain(?:ing|ed|s)?\b",
+    r"\bbert\b",
+    r"\btfidf\b",
+    r"\bsklearn\b",
+    r"\bscikit[- ]learn\b",
+    r"\btensorflow\b",
+    r"\bpytorch\b",
+    r"\bneural\b",
+    r"\bembedding model\b",
+]
+
+ML_PATH_KEYWORDS = (
+    "classifier", "classify", "predict", "prediction", "model",
+    "train", "training", "inference", "ml", "bert", "tfidf",
+    "sklearn", "tensorflow", "pytorch", "embedding",
+)
+
 
 @dataclass(frozen=True)
 class QueryIntent:
@@ -137,6 +161,25 @@ _INTENT_PROFILES: dict[str, dict] = {
         "penalize_extensions": set(),
         "penalize_chunk_types": set(),
     },
+    "ml": {
+        "boost_symbols": {
+            "classify", "classify_text", "predict", "predict_text",
+            "TextClassifier", "Classifier", "load_model", "inference",
+            "train_model", "fit", "transform", "vectorize",
+        },
+        "flow_symbols": {
+            "classify", "classify_text", "predict", "predict_text",
+            "load_model", "inference", "train_model",
+        },
+        "penalize_symbols": {"render", "App", "setupTests"},
+        "penalize_extensions": {".html", ".md", ".css"},
+        "penalize_chunk_types": set(),
+        "content_markers": {
+            "sklearn", "tensorflow", "pytorch", "tfidf", "bert",
+            "classifier", "predict_proba", "fit(", "transform(",
+            "joblib", "pickle", "model.predict",
+        },
+    },
 }
 
 
@@ -177,6 +220,8 @@ def classify_query_intent(query: str) -> QueryIntent:
         primary = "jwt"
     elif _matches_any(AUTH_PATTERNS, normalized):
         primary = "auth"
+    elif _matches_any(ML_PATTERNS, normalized):
+        primary = "ml"
     elif _matches_any(ARCHITECTURE_PATTERNS, normalized):
         primary = "architecture"
     elif _matches_any(ROUTE_PATTERNS, normalized):
@@ -214,7 +259,7 @@ def classify_top_k(query: str, intent: Optional[QueryIntent] = None) -> int:
     if intent is None:
         intent = classify_query_intent(query)
 
-    if intent.primary in ("jwt", "function", "route"):
+    if intent.primary in ("jwt", "function", "route", "ml"):
         return 5
     if intent.primary == "auth":
         return 8
@@ -283,6 +328,17 @@ def assign_context_group(item_metadata: dict, intent: QueryIntent) -> str:
         if "handler" in function_name or "handler" in file_path:
             return "API Handlers"
         return "Routes & Endpoints"
+
+    if intent.primary == "ml":
+        if any(k in file_path for k in ("classifier", "classify")):
+            return "Classification Logic"
+        if any(k in file_path for k in ("model", "train")):
+            return "Model Implementation"
+        if any(k in file_path for k in ("predict", "inference")):
+            return "Prediction / Inference"
+        if function_name:
+            return f"ML Function: {item_metadata.get('function_name')}"
+        return "Machine Learning"
 
     if function_name:
         return f"Function: {item_metadata.get('function_name')}"
