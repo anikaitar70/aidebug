@@ -21,6 +21,13 @@ class SessionData:
     fingerprints: Set[str] = field(default_factory=set)
     project_description: str = ""
     sample_questions: List[str] = field(default_factory=list)
+    # Indexing progress (updated during background zip processing)
+    indexing_status: str = "idle"  # idle | indexing | complete | error
+    indexing_total_files: int = 0
+    indexing_processed_files: int = 0
+    indexing_current_file: str = ""
+    indexing_chunks_created: int = 0
+    indexing_error: str = ""
     created_at: float = field(default_factory=time.time)
     last_accessed_at: float = field(default_factory=time.time)
 
@@ -134,6 +141,12 @@ class SessionStore:
             session.fingerprints.clear()
             session.project_description = ""
             session.sample_questions.clear()
+            session.indexing_status = "idle"
+            session.indexing_total_files = 0
+            session.indexing_processed_files = 0
+            session.indexing_current_file = ""
+            session.indexing_chunks_created = 0
+            session.indexing_error = ""
             session.touch()
             logger.info(
                 "session_cleared session_id=%s chunks_removed=%d",
@@ -168,6 +181,85 @@ class SessionStore:
                 "description": session.project_description,
                 "sample_questions": list(session.sample_questions),
                 "total_chunks": session.chunk_count,
+            }
+
+    def start_indexing(self, session_id: str, total_files: int) -> None:
+        with self._lock:
+            session = self.get_or_create(session_id)
+            session.indexing_status = "indexing"
+            session.indexing_total_files = total_files
+            session.indexing_processed_files = 0
+            session.indexing_current_file = ""
+            session.indexing_chunks_created = 0
+            session.indexing_error = ""
+            session.touch()
+
+    def update_indexing_progress(
+        self,
+        session_id: str,
+        *,
+        processed_files: int,
+        current_file: str = "",
+        chunks_created: int = 0,
+    ) -> None:
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None:
+                return
+            session.indexing_processed_files = processed_files
+            session.indexing_current_file = current_file
+            session.indexing_chunks_created = chunks_created
+            session.touch()
+
+    def complete_indexing(self, session_id: str, chunks_created: int) -> None:
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None:
+                return
+            session.indexing_status = "complete"
+            session.indexing_processed_files = session.indexing_total_files
+            session.indexing_current_file = ""
+            session.indexing_chunks_created = chunks_created
+            session.touch()
+
+    def fail_indexing(self, session_id: str, error: str) -> None:
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None:
+                return
+            session.indexing_status = "error"
+            session.indexing_error = error[:500]
+            session.touch()
+
+    def get_index_status(self, session_id: str) -> Dict[str, Any]:
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None:
+                return {
+                    "status": "idle",
+                    "total_files": 0,
+                    "processed_files": 0,
+                    "remaining_files": 0,
+                    "percent": 0,
+                    "current_file": "",
+                    "chunks_created": 0,
+                    "error": "",
+                }
+            total = session.indexing_total_files
+            processed = session.indexing_processed_files
+            remaining = max(0, total - processed)
+            percent = int((processed / total) * 100) if total > 0 else 0
+            if session.indexing_status == "complete":
+                percent = 100
+            return {
+                "status": session.indexing_status,
+                "total_files": total,
+                "processed_files": processed,
+                "remaining_files": remaining,
+                "percent": percent,
+                "current_file": session.indexing_current_file,
+                "chunks_created": session.indexing_chunks_created,
+                "error": session.indexing_error,
             }
 
 

@@ -3,7 +3,7 @@
 import logging
 import tempfile
 import re
-from typing import List
+from typing import List, Tuple
 import uuid
 from pathlib import Path
 
@@ -110,43 +110,58 @@ async def index_extracted_zip(session_id: str, upload_id: str) -> None:
     retrieval_service = await get_retrieval_service()
     session_store = get_session_store()
 
-    # Clear stale embeddings from prior uploads in this session
-    cleared = session_store.clear_session(session_id)
-    if cleared:
-        logger.info(
-            "Re-index: cleared %d stale chunks from session %s before new upload",
-            cleared,
-            session_id,
-        )
+    try:
+        # Clear stale embeddings from prior uploads in this session
+        cleared = session_store.clear_session(session_id)
+        if cleared:
+            logger.info(
+                "Re-index: cleared %d stale chunks from session %s before new upload",
+                cleared,
+                session_id,
+            )
 
-    count_before = retrieval_service.get_chunk_count(session_id)
+        count_before = retrieval_service.get_chunk_count(session_id)
 
-    files_processed = 0
-    chunks_generated = 0
+        # Collect indexable files first for accurate progress tracking
+        files_to_process: List[Tuple[Path, str]] = []
+        for root, dirs, files in os.walk(temp_dir):
+            dirs[:] = [
+                d for d in dirs
+                if should_index_path(str(Path(root).relative_to(temp_dir) / d))
+            ]
+            for filename in files:
+                file_path = Path(root) / filename
+                relative_path = str(file_path.relative_to(temp_dir)).replace('\\', '/')
+                if not should_index_path(relative_path):
+                    continue
+                try:
+                    file_path.read_bytes().decode('utf-8', errors='ignore')
+                    files_to_process.append((file_path, relative_path))
+                except Exception:
+                    continue
 
-    for root, dirs, files in os.walk(temp_dir):
-        # Prune excluded directories during walk
-        dirs[:] = [
-            d for d in dirs
-            if should_index_path(str(Path(root).relative_to(temp_dir) / d))
-        ]
-        for filename in files:
-            file_path = Path(root) / filename
-            relative_path = str(file_path.relative_to(temp_dir)).replace('\\', '/')
-            if not should_index_path(relative_path):
-                continue
+        session_store.start_indexing(session_id, len(files_to_process))
+
+        files_processed = 0
+        chunks_generated = 0
+
+        for idx, (file_path, relative_path) in enumerate(files_to_process):
+            session_store.update_indexing_progress(
+                session_id,
+                processed_files=idx,
+                current_file=relative_path,
+                chunks_created=chunks_generated,
+            )
             try:
                 content = file_path.read_bytes()
-                content.decode('utf-8', errors='ignore')
             except Exception:
                 continue
 
             file_id = str(uuid.uuid4())
-            relative_path = str(file_path.relative_to(temp_dir)).replace('\\', '/')
             chunk_count = await process_uploaded_file(
                 session_id=session_id,
                 file_id=file_id,
-                filename=filename,
+                filename=file_path.name,
                 content=content,
                 relative_path=relative_path,
             )
@@ -154,46 +169,60 @@ async def index_extracted_zip(session_id: str, upload_id: str) -> None:
                 files_processed += 1
                 chunks_generated += chunk_count
 
-    count_after = retrieval_service.get_chunk_count(session_id)
-    embeddings_stored = count_after - count_before
-
-    logger.info("VERIFICATION — Indexing complete")
-    logger.info("  Session: %s", session_id)
-    logger.info("  Files processed: %d", files_processed)
-    logger.info("  Chunks generated: %d", chunks_generated)
-    logger.info("  Embeddings stored: %d", embeddings_stored)
-    logger.info("  Session chunk count: %d", count_after)
-
-    # Generate project description + sample questions (no Gemini call)
-    try:
-        from app.services.project_overview_service import generate_project_overview
-
-        session = session_store.get(session_id)
-        if session and session.chunks:
-            overview = generate_project_overview(session.chunks)
-            session_store.set_project_overview(
+            session_store.update_indexing_progress(
                 session_id,
-                overview["description"],
-                overview["sample_questions"],
+                processed_files=idx + 1,
+                current_file=relative_path,
+                chunks_created=chunks_generated,
             )
-            logger.info(
-                "Project overview generated session=%s files=%d questions=%d",
-                session_id,
-                overview["total_files"],
-                len(overview["sample_questions"]),
-            )
-    except Exception as exc:
-        logger.warning("Failed to generate project overview: %s", exc)
 
-    # Remove uploaded files after indexing — embeddings live in session memory only
-    try:
-        from app.utils.zip_handler import get_zip_extractor
-        extractor = get_zip_extractor(settings.MAX_FILE_SIZE)
-        if temp_dir.exists():
-            extractor.cleanup_temp_dir(str(temp_dir))
-            logger.info("memory_freed removed_temp_dir=%s session_id=%s", upload_id, session_id)
+        count_after = retrieval_service.get_chunk_count(session_id)
+        embeddings_stored = count_after - count_before
+
+        logger.info("VERIFICATION — Indexing complete")
+        logger.info("  Session: %s", session_id)
+        logger.info("  Files processed: %d", files_processed)
+        logger.info("  Chunks generated: %d", chunks_generated)
+        logger.info("  Embeddings stored: %d", embeddings_stored)
+        logger.info("  Session chunk count: %d", count_after)
+
+        # Generate project description + sample questions (no Gemini call)
+        try:
+            from app.services.project_overview_service import generate_project_overview
+
+            session = session_store.get(session_id)
+            if session and session.chunks:
+                overview = generate_project_overview(session.chunks)
+                session_store.set_project_overview(
+                    session_id,
+                    overview["description"],
+                    overview["sample_questions"],
+                )
+                logger.info(
+                    "Project overview generated session=%s files=%d questions=%d",
+                    session_id,
+                    overview["total_files"],
+                    len(overview["sample_questions"]),
+                )
+        except Exception as exc:
+            logger.warning("Failed to generate project overview: %s", exc)
+
+        session_store.complete_indexing(session_id, chunks_generated)
+
     except Exception as exc:
-        logger.warning("Failed to cleanup temp dir %s: %s", upload_id, exc)
+        logger.error("Indexing failed for session %s: %s", session_id, exc)
+        session_store.fail_indexing(session_id, str(exc))
+        raise
+    finally:
+        # Remove uploaded files after indexing — embeddings live in session memory only
+        try:
+            from app.utils.zip_handler import get_zip_extractor
+            extractor = get_zip_extractor(settings.MAX_FILE_SIZE)
+            if temp_dir.exists():
+                extractor.cleanup_temp_dir(str(temp_dir))
+                logger.info("memory_freed removed_temp_dir=%s session_id=%s", upload_id, session_id)
+        except Exception as exc:
+            logger.warning("Failed to cleanup temp dir %s: %s", upload_id, exc)
 
 
 @router.post("/batch")
@@ -402,6 +431,19 @@ async def process_zip_extraction(
     except Exception as e:
         logger.error(f"Zip processing failed: {e}")
         raise HTTPException(status_code=500, detail="Zip processing failed")
+
+
+@router.get("/index-status")
+@limiter.limit("300/hour")
+async def get_index_status(
+    request: Request,
+    session_id: str | None = Query(default=None),
+    x_session_id: str | None = Header(default=None, alias="X-Session-Id"),
+):
+    """Poll indexing progress: files processed, percent complete, current file."""
+    resolved_session_id = _resolve_session_id(session_id, x_session_id)
+    status = get_session_store().get_index_status(resolved_session_id)
+    return {"session_id": resolved_session_id, **status}
 
 
 @router.delete("/zip/{upload_id}")

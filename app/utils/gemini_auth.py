@@ -14,11 +14,13 @@ def resolve_gemini_api_key(
     required: bool = True,
 ) -> Optional[str]:
     """
-    Resolve Gemini API key from request body or X-Gemini-Api-Key header.
+    Resolve Gemini API key from request header or body.
 
-    Keys are never logged or persisted server-side.
+    The key is used in-memory for a single Gemini API call only.
+    It is never written to disk, session storage, or logs.
     """
-    key = (body_key or header_key or "").strip()
+    # Prefer header so the key is less likely to appear in request-body logs
+    key = (header_key or body_key or "").strip()
     if not key:
         if required:
             raise HTTPException(
